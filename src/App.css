@@ -332,7 +332,7 @@
 
 .orders-panel-lines {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 3fr 1fr 1fr;
   gap: 0 10px;
   margin-top: 8px;
   margin-bottom: 8px;
@@ -391,6 +391,13 @@
   /* Ensure it doesn't overlap the company combo */
 }
 
+.orders-panel-line-discount {
+  grid-column: 3 / 4;
+  text-align: left;
+  color: #b85c00;
+  font-size: 0.95em;
+}
+
 @media (max-width: 900px) {
   .top-bar {
     position: static;
@@ -429,4 +436,99 @@
     margin-top: 1.5rem;
     max-width: 100%;
   }
+}
+
+.main-content {
+  display: flex;
+  gap: 32px;
+}
+
+.main-left {
+  flex: 2;
+  min-width: 0;
+}
+
+.main-right {
+  flex: 1;
+  min-width: 280px;
+  max-width: 400px;
+}
+
+.cart-panel {
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.08);
+}
+
+.cart-panel h3 {
+  margin-top: 0;
+}
+
+.cart-panel-lines {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 32px;
+  gap: 0 10px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.cart-panel-lines-header {
+  display: contents;
+  font-weight: bold;
+  color: #444;
+  background: none;
+}
+
+.cart-panel-line {
+  display: contents;
+}
+
+.cart-panel-line > div,
+.cart-panel-lines-header > div {
+  padding: 2px 0;
+  font-size: 1.05rem;
+  border-bottom: 1px solid #f2e9c9;
+}
+
+.cart-panel-line:last-child > div {
+  border-bottom: none;
+}
+
+.cart-panel-refresh {
+  margin-top: 12px;
+  padding: 6px 16px;
+  background: #ffd666;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.cart-panel-refresh:hover {
+  background: #ffe58f;
+}
+
+.cart-panel-remove {
+  background: none;
+  border: none;
+  color: #b85c00;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.cart-panel-remove:hover {
+  color: #d4380d;
+}
+
+.cart-panel-empty,
+.cart-panel-error {
+  color: #b85c00;
+  padding: 8px 0;
 }

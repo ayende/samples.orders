@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import type { Product, Company, Order } from './model'
 import './App.css'
+import { CartPanel } from './CartPanel'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -13,6 +14,7 @@ function App() {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const cartPanelRef = useRef<{ fetchCart: () => void; addToCart: (productId: string) => Promise<void> }>(null);
   const pageSize = 6
 
   useEffect(() => {
@@ -138,21 +140,40 @@ function App() {
           )}
         </div>
       </div>
-      <h1>Product Catalog</h1>
-      <div className="product-list" role="list">
-        {products.map(product => (
-          <div className="product-card" role="listitem" key={product.id}>
-            <h2>{product.Name}</h2>
-            <p>Price: ${product.PricePerUnit.toFixed(2)}</p>
-            <p>In Stock: {product.UnitsInStock}</p>
-            {product.Discontinued && <span className="discontinued">Discontinued</span>}
+      <div className="main-content">
+        <div className="main-left">
+          <h1>Product Catalog</h1>
+          <div className="product-list" role="list">
+            {products.map(product => (
+              <div className="product-card" role="listitem" key={product.id}>
+                <h2>{product.Name}</h2>
+                <p>Price: ${product.PricePerUnit.toFixed(2)}</p>
+                <p>In Stock: {product.UnitsInStock}</p>
+                {product.Discontinued && <span className="discontinued">Discontinued</span>}
+                <button
+                  className="add-to-cart-btn"
+                  disabled={!selectedCompany}
+                  onClick={async () => {
+                    if (!selectedCompany) return;
+                    await cartPanelRef.current?.addToCart(product.id);
+                  }}
+                >
+                  Add to cart
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="pagination">
-        <button onClick={() => setPage(page - 1)} disabled={page === 1}>&lt; Prev</button>
-        <span>Page {page} of {totalPages} - {total}</span>
-        <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>&gt; Next</button>
+          <div className="pagination">
+            <button onClick={() => setPage(page - 1)} disabled={page === 1}>&lt; Prev</button>
+            <span>Page {page} of {totalPages} - {total}</span>
+            <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>&gt; Next</button>
+          </div>
+        </div>
+        {selectedCompany && (
+          <div className="main-right">
+            <CartPanel ref={cartPanelRef} company={selectedCompany} />
+          </div>
+        )}
       </div>
     </div >
   )
@@ -206,14 +227,17 @@ function OrdersPanel({ company }: { company: Company | null }) {
                 <div>Product</div>
                 <div>Qty</div>
                 <div>Total</div>
-                <div>Discount</div>
               </li>
               {order.Lines.map((line, idx) => (
                 <li key={line.Product + '-' + idx} className="orders-panel-line">
                   <div>{line.ProductName}</div>
                   <div>{line.Quantity}</div>
                   <div>${(line.PricePerUnit * line.Quantity * (1 - line.Discount)).toFixed(2)}</div>
-                  <div>{line.Discount > 0 ? `${(line.Discount * 100).toFixed(0)}%` : '-'}</div>
+                  {line.Discount > 0 && (
+                    <div className="orders-panel-line-discount">
+                      -{(line.Discount * 100).toFixed(0)}%
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

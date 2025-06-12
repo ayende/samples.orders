@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { DocumentStore, QueryStatistics } from 'ravendb';
-import { Category, Product, Company, Order, CartItem } from './src/model';
+import { Category, Product, Company, Order, Cart } from './src/model';
 
 const app = express();
 app.use(cors());
@@ -66,6 +66,66 @@ app.get('/api/orders', async (req, res) => {
     .take(pageSize)
     .all();
   res.json({ total: stats.totalResults, orders });
+});
+
+// Get cart for a company
+app.get('/api/cart', async (req, res) => {
+  const session = store.openSession();
+  const companyId = req.query.companyId as string;
+  if (!companyId) {
+    return res.status(400).json({ error: 'Missing companyId query parameter' });
+  }
+  const cartId = `${companyId}/cart`;
+  let cart = await session.load<Cart>(cartId) || { id: cartId, Lines: [] };
+  res.json(cart);
+});
+
+// Add a product to the cart for a company
+app.post('/api/cart', async (req, res) => {
+  const session = store.openSession();
+  const { companyId, productId } = req.body;
+  if (!companyId || !productId) {
+    return res.status(400).json({ error: 'Missing companyId or productId' });
+  }
+  // Load product first and error if not found
+  const product = await session.load<Product>(productId);
+  if (!product) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+  const cartId = `${companyId}/cart`;
+  let cart: Cart = await session.load<Cart>(cartId) || { id: cartId, Lines: [] };
+  // Check if product already in cart
+  let item = cart.Lines.find((l) => l.Product === productId);
+  if (item) {
+    item.Quantity += 1;
+    item.ProductName = product.Name;
+    item.PricePerUnit = product.PricePerUnit;
+  } else {
+    cart.Lines.push({
+      Product: productId,
+      ProductName: product.Name,
+      PricePerUnit: product.PricePerUnit,
+      Quantity: 1
+    });
+  }
+  await session.store(cart, cartId);
+  await session.saveChanges();
+  res.json({success: true});
+});
+
+// Remove a product from the cart for a company
+app.delete('/api/cart', async (req, res) => {
+  const session = store.openSession();
+  const { companyId, productId } = req.body;
+  if (!companyId || !productId) {
+    return res.status(400).json({ error: 'Missing companyId or productId' });
+  }
+  const cartId = `${companyId}/cart`;
+  let cart: Cart = await session.load<Cart>(cartId) || { id: cartId, Lines: [] };
+  cart.Lines = cart.Lines.filter(line => line.Product !== productId);
+  await session.store(cart, cartId);
+  await session.saveChanges();
+  res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3001;

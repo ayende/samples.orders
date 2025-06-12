@@ -57,6 +57,13 @@ export interface Order {
 }
 
 export interface CartItem {
-  ProductId: string;
+  Product: string;
+  ProductName: string;
+  PricePerUnit: number;
   Quantity: number;
+}
+
+export interface Cart {
+  id: string;
+  Lines: CartItem[];
 }
