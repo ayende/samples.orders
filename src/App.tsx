@@ -4,6 +4,7 @@ import './App.css'
 import { CartPanel } from './CartPanel'
 import { OrdersPanel } from './OrdersPanel'
 import { ProductsPanel } from './ProductsPanel'
+import { AIAgent } from './AIAgent'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api'
 
@@ -75,90 +76,28 @@ function App() {
   }
 
   return (
-    <div className="catalog-container">
-      <OrdersPanel company={selectedCompany} />
-      <div className="top-bar">
-        <div className="company-combo" style={{ position: 'relative' }}>
-          {selectedCompany ? (
-            <div className="company-label-row">
-              <span className="company-label">{selectedCompany.Name} ({selectedCompany.id})</span>
-              <button
-                className="company-dropdown-trigger"
-                onClick={() => {
-                  setCompanySearch(selectedCompany.Name);
-                  setShowDropdown(v => !v);
-                  setTimeout(() => inputRef.current?.focus(), 0);
-                  setSelectedCompany(null);
-                }}
-                aria-label="Change company"
-                tabIndex={0}
-              >
-                ...
-              </button>
-              {showDropdown && filteredCompanies.length > 0 && (
-                <ul className="company-dropdown">
-                  {filteredCompanies.map((c, idx) => (
-                    <li
-                      key={c.id + '-' + idx}
-                      onMouseDown={() => handleSelectCompany(c)}
-                      className="company-dropdown-item"
-                    >
-                      {c.Name} ({c.id})
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ) : (
-            <>
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder="Search company..."
-                value={companySearch}
-                onChange={e => {
-                  setCompanySearch(e.target.value)
-                  setShowDropdown(true)
-                }}
-                onFocus={() => setShowDropdown(true)}
-                onBlur={handleBlur}
-                className="company-search"
-                autoComplete="off"
-              />
-              {showDropdown && filteredCompanies.length > 0 && (
-                <ul className="company-dropdown">
-                  {filteredCompanies.map((c, idx) => (
-                    <li
-                      key={c.id + '-' + idx}
-                      onMouseDown={() => handleSelectCompany(c)}
-                      className="company-dropdown-item"
-                    >
-                      {c.Name} ({c.id})
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      <div className="main-content">
+    <div className="main-layout">
+      <div className="main-row">
         <div className="main-left">
-          <ProductsPanel
-            selectedCompany={selectedCompany}
-            onAddToCart={async (productId) => {
-              if (!selectedCompany) return;
-              await cartPanelRef.current?.addToCart(productId);
-            }}
-          />
+          <OrdersPanel company={selectedCompany} />
         </div>
-        {selectedCompany && (
-          <div className="main-right">
-            <CartPanel ref={cartPanelRef} company={selectedCompany} />
-          </div>
-        )}
+        <div className="main-center">
+          <AIAgent />
+        </div>
+        <div className="main-right">
+          {selectedCompany && <CartPanel ref={cartPanelRef} company={selectedCompany} />}
+        </div>
       </div>
-    </div >
+      <div className="main-bottom">
+        <ProductsPanel
+          selectedCompany={selectedCompany}
+          onAddToCart={async (productId) => {
+            if (!selectedCompany) return;
+            await cartPanelRef.current?.addToCart(productId);
+          }}
+        />
+      </div>
+    </div>
   )
 }
 
