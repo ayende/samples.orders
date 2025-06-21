@@ -56,6 +56,11 @@ function App() {
     }
   }, [selectedCompany])
 
+  // Expose cartPanelRef globally for AIAgent
+  useEffect(() => {
+    (window as any).cartPanelRef = cartPanelRef.current;
+  }, [cartPanelRef.current]);
+
   const totalPages = Math.ceil(total / pageSize)
 
   const filteredCompanies = companies.filter(c =>
@@ -76,19 +81,25 @@ function App() {
   }
 
   return (
-    <div className="main-layout">
-      <div className="main-row">
-        <div className="main-left">
-          <OrdersPanel company={selectedCompany} />
-        </div>
-        <div className="main-center">
-          <AIAgent />
-        </div>
-        <div className="main-right">
-          {selectedCompany && <CartPanel ref={cartPanelRef} company={selectedCompany} />}
-        </div>
+    <div className="main-grid-layout">
+      <div className="main-grid-item orders-panel">
+        <OrdersPanel
+          company={selectedCompany}
+          companies={companies}
+          onSelectCompany={companyId => {
+            const found = companies.find(c => c.id === companyId) || null;
+            setSelectedCompany(found);
+            setCompanySearch(found ? found.Name + ' (' + found.id + ')' : '');
+          }}
+        />
       </div>
-      <div className="main-bottom">
+      <div className="main-grid-item ai-agent">
+        <AIAgent />
+      </div>
+      <div className="main-grid-item cart-panel">
+        {selectedCompany && <CartPanel ref={cartPanelRef} company={selectedCompany} />}
+      </div>
+      <div className="main-grid-item products-panel">
         <ProductsPanel
           selectedCompany={selectedCompany}
           onAddToCart={async (productId) => {

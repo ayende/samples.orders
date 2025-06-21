@@ -40,8 +40,6 @@ Run the following commands to install all required dependencies:
 
 ```sh
 npm install
-npm install ts-node --save-dev
-npm install ts-node-dev --save-dev
 ```
 
 ---

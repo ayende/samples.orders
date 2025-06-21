@@ -12,7 +12,7 @@ export function ProductsPanel({ selectedCompany, onAddToCart }: ProductsPanelPro
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const pageSize = 4;
+  const pageSize = 2;
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/products?page=${page}&pageSize=${pageSize}`)
@@ -27,13 +27,13 @@ export function ProductsPanel({ selectedCompany, onAddToCart }: ProductsPanelPro
 
   return (
     <div>
-      <h1>Product Catalog</h1>
+      <h2>Product Catalog</h2>
       <div className="product-list" role="list">
         {products.map(product => (
           <div className="product-card" role="listitem" key={product.id}>
-            <h2>{product.Name}</h2>
-            <p>Price: ${product.PricePerUnit.toFixed(2)}</p>
-            <p>In Stock: {product.UnitsInStock}</p>
+            <h3>{product.Name}</h3>
+            <span>Price: ${product.PricePerUnit.toFixed(2)}</span>
+            <span>In Stock: {product.UnitsInStock}</span>
             {product.Discontinued && <span className="discontinued">Discontinued</span>}
             <button
               className="add-to-cart-btn"

@@ -5,9 +5,11 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 interface OrdersPanelProps {
   company: Company | null;
+  companies: Company[];
+  onSelectCompany: (companyId: string) => void;
 }
 
-export function OrdersPanel({ company }: OrdersPanelProps) {
+export function OrdersPanel({ company, companies, onSelectCompany }: OrdersPanelProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,47 +38,67 @@ export function OrdersPanel({ company }: OrdersPanelProps) {
     setPage(1);
   }, [company]);
 
-  if (!company) return <div className="orders-panel-empty">Choose a company</div>;
-  if (loading) return <div className="orders-panel-loading">Loading orders...</div>;
-  if (error) return <div className="orders-panel-error">{error}</div>;
-  if (!orders.length) return <div className="orders-panel-empty">No orders found</div>;
-
-  const totalPages = Math.ceil(total / pageSize);
+  // Always show the company selector
+  const companyValue = company ? company.id : '';
 
   return (
-    <div className="orders-panel-list">
-      <h3>Orders</h3>
-      <ul>
-        {orders.map(order => (
-          <li key={order.id} className="orders-panel-order">
-            <div>Ordered At: {order.OrderedAt?.slice(0, 10)}</div>
-            <ul className="orders-panel-lines">
-              <li className="orders-panel-lines-header">
-                <div>Product</div>
-                <div>Qty</div>
-                <div>Total</div>
-              </li>
-              {order.Lines.map((line, idx) => (
-                <li key={line.Product + '-' + idx} className="orders-panel-line">
-                  <div>{line.ProductName}</div>
-                  <div>{line.Quantity}</div>
-                  <div>${(line.PricePerUnit * line.Quantity * (1 - line.Discount)).toFixed(2)}</div>
-                  {line.Discount > 0 && (
-                    <div className="orders-panel-line-discount">
-                      -{(line.Discount * 100).toFixed(0)}%
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </li>
+    <div className={company ? 'orders-panel-list orders-panel-in-grid' : 'orders-panel-empty orders-panel-in-grid'}>
+      <label htmlFor="company-select">Select a company:</label>
+      <select
+        id="company-select"
+        className="company-select"
+        value={companyValue}
+        onChange={e => onSelectCompany(e.target.value)}
+      >
+        <option value="">Select a company</option>
+        {companies.map(c => (
+          <option key={c.id} value={c.id}>{c.Name}</option>
         ))}
-      </ul>
-      <div className="orders-panel-pagination">
-        <button onClick={() => setPage(page - 1)} disabled={page === 1}>&lt; Prev</button>
-        <span>Page {page} of {totalPages}</span>
-        <button onClick={() => setPage(page + 1)} disabled={page === totalPages}>&gt; Next</button>
-      </div>
+      </select>
+      {!company && <div style={{marginTop: 16}}>Please select a company to view orders.</div>}
+      {company && (
+        <>
+          {loading && <div className="orders-panel-loading">Loading orders...</div>}
+          {error && <div className="orders-panel-error">{error}</div>}
+          {!loading && !error && !orders.length && <div className="orders-panel-empty">No orders found</div>}
+          {!loading && !error && orders.length > 0 && (
+            <>
+              <h3>Orders</h3>
+              <ul>
+                {orders.map(order => (
+                  <li key={order.id} className="orders-panel-order">
+                    <div>Ordered At: {order.OrderedAt?.slice(0, 10)}</div>
+                    <ul className="orders-panel-lines">
+                      <li className="orders-panel-lines-header">
+                        <div>Product</div>
+                        <div>Qty</div>
+                        <div>Total</div>
+                      </li>
+                      {order.Lines.map((line, idx) => (
+                        <li key={line.Product + '-' + idx} className="orders-panel-line">
+                          <div>{line.ProductName}</div>
+                          <div>{line.Quantity}</div>
+                          <div>${(line.PricePerUnit * line.Quantity * (1 - line.Discount)).toFixed(2)}</div>
+                          {line.Discount > 0 && (
+                            <div className="orders-panel-line-discount">
+                              -{(line.Discount * 100).toFixed(0)}%
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+              <div className="orders-panel-pagination">
+                <button onClick={() => setPage(page - 1)} disabled={page === 1}>&lt; Prev</button>
+                <span>Page {page} of {Math.ceil(total / pageSize)}</span>
+                <button onClick={() => setPage(page + 1)} disabled={page === Math.ceil(total / pageSize)}>&gt; Next</button>
+              </div>
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }

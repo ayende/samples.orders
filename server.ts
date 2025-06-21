@@ -1,13 +1,15 @@
 import express from 'express';
 import cors from 'cors';
-import { DocumentStore, QueryStatistics } from 'ravendb';
+import { DocumentStore, IDocumentSession, QueryStatistics } from 'ravendb';
 import { Category, Product, Company, Order, Cart } from './src/model';
+import { AiUsage, ToolRequest, ChatResult, createAiAgent, CreateAiAgentBody, startConversation, resumeConversation, ToolResponse } from './src/ravendb-ext';
+import fetch from 'node-fetch';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const store = new DocumentStore('http://localhost:8080', 'Orders');
+const store = new DocumentStore('http://127.0.0.1:8080', 'Orders');
 store.initialize();
 
 // Get all products (with paging)
@@ -17,13 +19,13 @@ app.get('/api/products', async (req, res) => {
   const pageSize = parseInt(req.query.pageSize as string) || 5;
   let stats = new QueryStatistics();
   const products = await session.query<Product>({ collection: 'Products' })
-    .statistics(s => { stats = s})
+    .statistics(s => { stats = s })
     .whereEquals('Discontinued', false)
     .skip((page - 1) * pageSize)
     .take(pageSize)
     .all();
   res.json({ total: stats.totalResults, products });
-}); 
+});
 
 // Get all categories
 app.get('/api/categories', async (req, res) => {
@@ -81,16 +83,12 @@ app.get('/api/cart', async (req, res) => {
 });
 
 // Add a product to the cart for a company
-app.post('/api/cart', async (req, res) => {
+async function addToCart(companyId: string, productId: string): Promise<{ success: boolean, message: string }> {
   const session = store.openSession();
-  const { companyId, productId } = req.body;
-  if (!companyId || !productId) {
-    return res.status(400).json({ error: 'Missing companyId or productId' });
-  }
   // Load product first and error if not found
   const product = await session.load<Product>(productId);
   if (!product) {
-    return res.status(404).json({ error: 'Product not found' });
+    return { success: false, message: `Product '${productId}' not found` };
   }
   const cartId = `${companyId}/cart`;
   let cart: Cart = await session.load<Cart>(cartId) || { id: cartId, Lines: [] };
@@ -110,7 +108,19 @@ app.post('/api/cart', async (req, res) => {
   }
   await session.store(cart, cartId);
   await session.saveChanges();
-  res.json({success: true});
+  return { success: true, message: `Product '${product.Name}' added to cart` };
+}
+
+app.post('/api/cart', async (req, res) => {
+  const { companyId, productId } = req.body;
+  if (!companyId || !productId) {
+    return res.status(400).json({ error: 'Missing companyId or productId' });
+  }
+  const result = await addToCart(companyId, productId);
+  if (result.success === false) {
+    return res.status(404).json(result);
+  }
+  res.json(result);
 });
 
 // Remove a product from the cart for a company
@@ -128,7 +138,111 @@ app.delete('/api/cart', async (req, res) => {
   res.json({ success: true });
 });
 
+app.post('/api/ai', async (req, res) => {
+  let { chatId, prompt, companyId } = req.body;
+  if (!prompt || !companyId) {
+    return res.status(400).json({ error: 'Missing prompt or companyId' });
+  }
+  let result: ChatResult<ShoppingAgentReplySchema>;
+  try {
+    if (!chatId) {
+      result = await startConversation<ShoppingAgentReplySchema>(
+        store.urls[0],
+        'ShoppingAgent',
+        { company: companyId },
+        prompt
+      );
+      chatId = result.ChatId;
+    } else {
+      result = await resumeConversation<ShoppingAgentReplySchema>(store.urls[0], 'ShoppingAgent', chatId, {
+        userPrompt: prompt
+      });
+    }
+    const state = {
+      chatId: chatId,
+      actions: [],
+      answer: '',
+      toolResponses: [] as ToolResponse[],
+      refreshCart: false,
+      orders: new Set<string>(),
+      products: new Set<string>()
+    };
+    while (true) {
+      if (result.Response !== null) {
+        state.answer = result.Response.answer;
+        (result.Response.orders || []).forEach(order => state.orders.add(order));
+        (result.Response.products || []).forEach(product => state.products.add(product));
+      }
+      for (const tool of result.ToolRequests || []) {
+        switch (tool.Name) {
+          case 'AddToCart':
+            state.refreshCart = true;
+            const result = await addToCart(companyId, tool.Arguments.productId);
+            state.toolResponses.push({
+              ToolId: tool.ToolId,
+              Content: result.message
+            } as ToolResponse);
+            break;
+        }
+      }
+      if (state.toolResponses.length == 0) {
+        break; // return to the caller
+      }
+      result = await resumeConversation<ShoppingAgentReplySchema>(store.urls[0], 'ShoppingAgent', chatId, {
+        toolResponses: state.toolResponses
+      });
+      state.toolResponses = []; // reset for next iteration
+    }
+    return res.json(state);
+  } catch (err) {
+    return res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Backend listening on port ${PORT}`);
+  createAiAgent(store.urls[0], 'ShoppingAgent', ShoppingAgent);
 });
+
+export interface ShoppingAgentReplySchema {
+  answer: string;
+  orders: string[];
+  products: string[];
+}
+
+const ShoppingAgent: CreateAiAgentBody = {
+  ConnectionStringName: 'OpenAi',
+  SystemPrompt: 'You are a helpful AI assistant for an e-commerce platform.\n' +
+    'You can help users with product information, order management, and more.',
+  OutputSchema: JSON.stringify({
+    answer: 'the model reply to the user',
+    orders: ['related orders to the last user query'],
+    products: ['related products to the last user query'],
+  } as ShoppingAgentReplySchema),
+  Persistence: {
+    Collection: "Chats",
+    Expires: null
+  },
+  Actions: [{
+    Name: 'AddToCart',
+    Description: 'Add a product to the cart for the current user',
+    ParametersSchema: JSON.stringify({
+      productId: "the product id to add to the cart"
+    })
+  }],
+  Queries: [
+    {
+      Name: 'RecentOrders',
+      Query: 'from Orders where Company = $company order by OrderedAt desc limit 10',
+      Description: 'Get the most recent orders for the current user',
+      ParametersSchema: '{}'
+    },
+    {
+      Name: 'ProductCatalogSearch',
+      Description: "semantic search the store product catalog",
+      Query: "from Products where vector.search(embedding.text(Name), $query)",
+      ParametersSchema: JSON.stringify({ query: ["term or phrase to search in the catalog"] })
+    }
+  ]
+};
