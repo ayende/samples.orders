@@ -12,6 +12,21 @@ app.use(express.json());
 const store = new DocumentStore('http://127.0.0.1:8080', 'Orders');
 store.initialize();
 
+// Represents an action requested by the AI agent to be performed by the frontend
+export type UserAction = {
+  name: string;
+  toolId: string;
+  arguments: Record<string, any>;
+};
+
+// ShoppingAgentReplySchema: expected shape of AI agent's response
+export interface ShoppingAgentReplySchema {
+  answer: string;
+  orders?: string[];
+  products?: string[];
+  cart?: Cart;
+}
+
 // Get all products (with paging)
 app.get('/api/products', async (req, res) => {
   const session = store.openSession();
@@ -160,7 +175,7 @@ app.post('/api/ai', async (req, res) => {
     }
     const state = {
       chatId: chatId,
-      actions: [],
+      actions: [] as UserAction[],
       answer: '',
       toolResponses: [] as ToolResponse[],
       refreshCart: false,
@@ -177,25 +192,40 @@ app.post('/api/ai', async (req, res) => {
         switch (tool.Name) {
           case 'AddToCart':
             state.refreshCart = true;
-            const result = await addToCart(companyId, tool.Arguments.productId);
+            const addResult = await addToCart(companyId, tool.Arguments.productId);
             state.toolResponses.push({
               ToolId: tool.ToolId,
-              Content: result.message
+              Content: addResult.message
             } as ToolResponse);
+            break;
+          default:
+            state.actions.push({
+              name: tool.Name,
+              toolId: tool.ToolId,
+              arguments: tool.Arguments
+            });
             break;
         }
       }
-      if (state.toolResponses.length == 0) {
-        break; // return to the caller
+      // Use a new session for cart loading inside the AI loop
+      if (state.refreshCart) {
+        const cartId = `${companyId}/cart`;
+        const cartSession = store.openSession();
+        let cart = await cartSession.load<Cart>(cartId) || { id: cartId, Lines: [] };
+        result.Response.cart = cart;
+      }
+      // Check for completion using result.Response?.isCompleted (if available)
+      if ((result.Response as any)?.isCompleted || (result as any).IsCompleted) {
+        break;
       }
       result = await resumeConversation<ShoppingAgentReplySchema>(store.urls[0], 'ShoppingAgent', chatId, {
-        toolResponses: state.toolResponses
+        userPrompt: ''
       });
-      state.toolResponses = []; // reset for next iteration
     }
-    return res.json(state);
-  } catch (err) {
-    return res.status(500).json({ error: (err as Error).message });
+    res.json({ answer: state.answer, actions: state.actions, toolResponses: state.toolResponses });
+  } catch (e) {
+    console.log('Error handling AI request', e);
+    res.status(500).json({ error: 'Error handling AI request' });
   }
 });
 
@@ -204,12 +234,6 @@ app.listen(PORT, () => {
   console.log(`Backend listening on port ${PORT}`);
   createAiAgent(store.urls[0], 'ShoppingAgent', ShoppingAgent);
 });
-
-export interface ShoppingAgentReplySchema {
-  answer: string;
-  orders: string[];
-  products: string[];
-}
 
 const ShoppingAgent: CreateAiAgentBody = {
   ConnectionStringName: 'OpenAi',
@@ -229,6 +253,12 @@ const ShoppingAgent: CreateAiAgentBody = {
     Description: 'Add a product to the cart for the current user',
     ParametersSchema: JSON.stringify({
       productId: "the product id to add to the cart"
+    })
+  },{
+    Name: 'CancelOrder',
+    Description: 'Cancel an order for the current user',
+    ParametersSchema: JSON.stringify({
+      orderId: "the order id to cancel / refund"
     })
   }],
   Queries: [
