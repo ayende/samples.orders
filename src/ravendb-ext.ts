@@ -54,11 +54,6 @@ export async function createAiAgent(
   body: CreateAiAgentBody
 ): Promise<void> {
   const url = `${ravendbUrl}/databases/orders/admin/ai/agent?name=${encodeURIComponent(name)}&raft-request-id=${crypto.randomUUID()}`;
-  const exists = await fetch(url);
-  if (exists.ok) {
-    console.log(`${name} already exists, skipping initialization.`);
-    return;
-  }
   const response = await fetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

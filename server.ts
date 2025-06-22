@@ -154,10 +154,7 @@ app.delete('/api/cart', async (req, res) => {
 });
 
 app.post('/api/ai', async (req, res) => {
-  let { chatId, prompt, companyId } = req.body;
-  if (!prompt || !companyId) {
-    return res.status(400).json({ error: 'Missing prompt or companyId' });
-  }
+  let { chatId, prompt, companyId, toolResponses } = req.body;
   let result: ChatResult<ShoppingAgentReplySchema>;
   try {
     if (!chatId) {
@@ -169,9 +166,13 @@ app.post('/api/ai', async (req, res) => {
       );
       chatId = result.ChatId;
     } else {
-      result = await resumeConversation<ShoppingAgentReplySchema>(store.urls[0], 'ShoppingAgent', chatId, {
-        userPrompt: prompt
-      });
+      let msg;
+      if (toolResponses && toolResponses.length > 0) {
+        msg = { toolResponses };
+      } else {
+        msg = { userPrompt: prompt };
+      }
+      result = await resumeConversation<ShoppingAgentReplySchema>(store.urls[0], 'ShoppingAgent', chatId, msg);
     }
     const state = {
       chatId: chatId,
@@ -207,26 +208,36 @@ app.post('/api/ai', async (req, res) => {
             break;
         }
       }
-      // Use a new session for cart loading inside the AI loop
-      if (state.refreshCart) {
-        const cartId = `${companyId}/cart`;
-        const cartSession = store.openSession();
-        let cart = await cartSession.load<Cart>(cartId) || { id: cartId, Lines: [] };
-        result.Response.cart = cart;
-      }
-      // Check for completion using result.Response?.isCompleted (if available)
-      if ((result.Response as any)?.isCompleted || (result as any).IsCompleted) {
-        break;
+      if (state.toolResponses.length == 0) {
+        break; // return to the caller
       }
       result = await resumeConversation<ShoppingAgentReplySchema>(store.urls[0], 'ShoppingAgent', chatId, {
-        userPrompt: ''
+        toolResponses: state.toolResponses
       });
+      state.toolResponses = []; // reset for next iteration
     }
     res.json({ answer: state.answer, actions: state.actions, toolResponses: state.toolResponses });
   } catch (e) {
     console.log('Error handling AI request', e);
     res.status(500).json({ error: 'Error handling AI request' });
   }
+});
+
+// Cancel an order for a company
+app.post('/api/orders/cancel', async (req, res) => {
+  const { orderId } = req.body;
+  if (!orderId) {
+    return res.status(400).json({ error: 'Missing orderId' });
+  }
+  const session = store.openSession();
+  const order = await session.load<Order>(orderId);
+  if (!order) {
+    return res.status(404).json({ error: `Order '${orderId}' not found` });
+  }
+  // For demo: mark as cancelled (add a CancelledAt field)
+  order.CancelledAt = new Date();
+  await session.saveChanges();
+  res.json({ success: true, message: `Order '${orderId}' was cancelled` });
 });
 
 const PORT = process.env.PORT || 3001;
@@ -254,7 +265,7 @@ const ShoppingAgent: CreateAiAgentBody = {
     ParametersSchema: JSON.stringify({
       productId: "the product id to add to the cart"
     })
-  },{
+  }, {
     Name: 'CancelOrder',
     Description: 'Cancel an order for the current user',
     ParametersSchema: JSON.stringify({

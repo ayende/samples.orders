@@ -52,6 +52,7 @@ export interface Order {
   OrderedAt: string;
   RequireAt?: string;
   ShippedAt?: string;
+  CancelledAt: Date | null;
   ShipTo?: ShipTo;
   Lines: OrderLine[];
 }

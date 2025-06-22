@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { CancelOrderDialog } from './CancelOrderDialog';
+import type { ToolResponse } from './ravendb-ext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -8,11 +9,23 @@ export function AIAgent() {
   const [messages, setMessages] = useState<{ sender: 'user' | 'ai'; text: string }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [cancelDialog, setCancelDialog] = useState<{ orderId: string } | null>(null);
+  const [cancelDialog, setCancelDialog] = useState<{ orderId: string, toolId: string } | null>(null);
   const chatIdRef = useRef<string | null>(null);
 
-  async function ravendbAi(prompt: string, companyId: string, chatId: string | null) {
+  const selectedCompany = JSON.parse(localStorage.getItem('selectedCompany') || '{}');
+
+  async function ravendbAiTalk(prompt: string, companyId: string, chatId: string | null) {
     const body = { prompt, companyId, chatId };
+    const res = await fetch(`${API_BASE_URL}/ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return res.json();
+  }
+
+  async function ravendbAiToolReplies(toolResponses: ToolResponse[], companyId: string, chatId: string) {
+    const body = { toolResponses, companyId, chatId };
     const res = await fetch(`${API_BASE_URL}/ai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -27,24 +40,20 @@ export function AIAgent() {
     setLoading(true);
     setInput('');
     try {
-      const company = JSON.parse(localStorage.getItem('selectedCompany') || '{}');
-      if(company.id === undefined) {
+      if(selectedCompany.id === undefined) {
         setMessages(msgs => [...msgs, { sender: 'ai', text: 'AI error: no company selected.' }]);
         return;
       }
-      const data = await ravendbAi(input, company.id, chatIdRef.current);
+      const data = await ravendbAiTalk(input, selectedCompany.id, chatIdRef.current);
       chatIdRef.current = data.chatId;
       if(data.refreshCart){
           (window as any).cartPanelRef.fetchCart();
       }
       for (const action of data.actions || []) {
         switch (action.name) {
-          case 'AddToCart':
-            await (window as any).cartPanelRef.addToCart(action.arguments.productId);
-            break;
           case 'CancelOrder':
             const orderId = action.arguments.orderId;
-            setCancelDialog({ orderId });
+            setCancelDialog({ orderId, toolId: action.toolId });
             break;
         }
       }
@@ -90,8 +99,9 @@ export function AIAgent() {
           orderId={cancelDialog.orderId}
           open={true}
           onClose={(result) => {
+            ravendbAiToolReplies([{ ToolId: cancelDialog.toolId, Content: result.message }], 
+              selectedCompany.id, chatIdRef.current!);
             setCancelDialog(null);
-            console.log('CancelOrderDialog result:', result.message);
           }}
         />
       )}
