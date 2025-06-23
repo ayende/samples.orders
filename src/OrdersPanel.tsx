@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Company, Order } from './model';
+import { CancelOrderDialog } from './CancelOrderDialog';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -15,6 +16,7 @@ export function OrdersPanel({ company, companies, onSelectCompany }: OrdersPanel
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [cancelDialog, setCancelDialog] = useState<{ orderId: string } | null>(null);
   const pageSize = 2;
 
   useEffect(() => {
@@ -67,7 +69,15 @@ export function OrdersPanel({ company, companies, onSelectCompany }: OrdersPanel
               <ul>
                 {orders.map(order => (
                   <li key={order.id} className="orders-panel-order">
-                    <div>Ordered At: {order.OrderedAt?.slice(0, 10)}</div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span>Ordered At: {order.OrderedAt?.slice(0, 10)}</span>
+                      <button
+                        style={{background:'#e74c3c',color:'#fff',border:'none',borderRadius:'6px',padding:'0.4em 1em',marginLeft:'1em',cursor:'pointer'}}
+                        onClick={() => setCancelDialog({ orderId: order.id })}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                     <ul className="orders-panel-lines">
                       <li className="orders-panel-lines-header">
                         <div>Product</div>
@@ -95,6 +105,13 @@ export function OrdersPanel({ company, companies, onSelectCompany }: OrdersPanel
                 <span>Page {page} of {Math.ceil(total / pageSize)}</span>
                 <button onClick={() => setPage(page + 1)} disabled={page === Math.ceil(total / pageSize)}>&gt; Next</button>
               </div>
+              {cancelDialog && (
+                <CancelOrderDialog
+                  orderId={cancelDialog.orderId}
+                  open={true}
+                  onClose={() => setCancelDialog(null)}
+                />
+              )}
             </>
           )}
         </>

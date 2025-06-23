@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { Order } from './model';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 interface CancelOrderDialogProps {
   orderId: string;
   open: boolean;
@@ -17,13 +19,13 @@ export function CancelOrderDialog({ orderId, open, onClose }: CancelOrderDialogP
     if (!open) return;
     setOrder(null);
     setError(null);
-    fetch(`/api/orders/${orderId}`)
+    fetch(`${API_BASE_URL}/orders?id=${encodeURIComponent(orderId)}`)
       .then(res => {
         if (!res.ok) throw new Error('Order not found');
         return res.json();
       })
       .then(setOrder)
-      .catch(() => setError('Could not load order details'));
+      .catch(e => setError('Could not load order details: ' + e));
   }, [orderId, open]);
 
   if (!open) return null;
@@ -32,7 +34,7 @@ export function CancelOrderDialog({ orderId, open, onClose }: CancelOrderDialogP
     setLoading(true);
     try {
       // Call backend API to cancel the order
-      const res = await fetch(`/api/orders/cancel`, {
+      const res = await fetch(`${API_BASE_URL}/orders/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId })
@@ -74,11 +76,13 @@ export function CancelOrderDialog({ orderId, open, onClose }: CancelOrderDialogP
                 <li key={idx}>{line.ProductName} &times; {line.Quantity} (${(line.PricePerUnit * line.Quantity * (1 - line.Discount)).toFixed(2)})</li>
               ))}
             </ul>
+            <div style={{marginTop:'1.5em', textAlign:'right'}}>
+              <button onClick={handleCancel} disabled={loading} style={{background:'#e74c3c',color:'#fff',padding:'0.7em 1.5em',borderRadius:'6px',border:'none'}}>Cancel Order</button>
+            </div>
           </div>
         )}
         <div style={{display:'flex',gap:'1em',marginTop:'1.5em'}}>
-          <button onClick={handleCancel} disabled={loading} style={{background:'#e74c3c',color:'#fff',padding:'0.7em 1.5em',borderRadius:'6px',border:'none'}}>Yes, Cancel</button>
-          <button onClick={handleNo} disabled={loading} style={{background:'#ccc',color:'#333',padding:'0.7em 1.5em',borderRadius:'6px',border:'none'}}>No</button>
+          <button onClick={handleNo} disabled={loading} style={{background:'#ccc',color:'#333',padding:'0.7em 1.5em',borderRadius:'6px',border:'none'}}>Close</button>
         </div>
       </div>
     </div>

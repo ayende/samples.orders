@@ -40,14 +40,14 @@ export function AIAgent() {
     setLoading(true);
     setInput('');
     try {
-      if(selectedCompany.id === undefined) {
+      if (selectedCompany.id === undefined) {
         setMessages(msgs => [...msgs, { sender: 'ai', text: 'AI error: no company selected.' }]);
         return;
       }
       const data = await ravendbAiTalk(input, selectedCompany.id, chatIdRef.current);
       chatIdRef.current = data.chatId;
-      if(data.refreshCart){
-          (window as any).cartPanelRef.fetchCart();
+      if (data.refreshCart) {
+        (window as any).cartPanelRef.fetchCart();
       }
       for (const action of data.actions || []) {
         switch (action.name) {
@@ -98,9 +98,11 @@ export function AIAgent() {
         <CancelOrderDialog
           orderId={cancelDialog.orderId}
           open={true}
-          onClose={(result) => {
-            ravendbAiToolReplies([{ ToolId: cancelDialog.toolId, Content: result.message }], 
+          onClose={async (result) => {
+            const data = await ravendbAiToolReplies([{ ToolId: cancelDialog.toolId, Content: result.message }],
               selectedCompany.id, chatIdRef.current!);
+            console.log('AI response:', data);
+            setMessages(msgs => [...msgs, { sender: 'ai', text: data.answer }]);
             setCancelDialog(null);
           }}
         />

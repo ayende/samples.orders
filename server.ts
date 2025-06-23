@@ -68,6 +68,14 @@ app.post('/api/orders', async (req, res) => {
 // Get orders for a company (companyId as query param, with paging and statistics)
 app.get('/api/orders', async (req, res) => {
   const session = store.openSession();
+  const id = req.query.id as string;
+  if (id) {
+    const order = await session.load<Order>(id as string);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    return res.json(order);
+  }
   const companyId = req.query.companyId as string;
   if (!companyId) {
     return res.status(400).json({ error: 'Missing companyId query parameter' });
