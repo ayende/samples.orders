@@ -216,7 +216,7 @@ app.post('/api/ai', async (req, res) => {
       });
       state.toolResponses = []; // reset for next iteration
     }
-    res.json({ answer: state.answer, actions: state.actions, toolResponses: state.toolResponses });
+    res.json(state);
   } catch (e) {
     console.log('Error handling AI request', e);
     res.status(500).json({ error: 'Error handling AI request' });
