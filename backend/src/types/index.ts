@@ -30,6 +30,7 @@ export interface ShipTo {
 }
 
 export interface Order {
+    id: string;
     Company: string;
     Employee: string;
     Freight: number;
@@ -42,9 +43,18 @@ export interface Order {
 }
 
 export interface ChatMessage {
-    id: string;
     userId: string;
-    message: string;
+    message?: string;
+    answer?: {
+        message: string;
+        orders: string[];
+        products: string[];
+    },
+    requiredActions: {
+        name: string;
+        toolId: string;
+        arguments: string;
+    }[],
     sender: 'user' | 'ai';
     timestamp: string;
 }

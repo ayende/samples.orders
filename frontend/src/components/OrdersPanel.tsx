@@ -1,6 +1,6 @@
 import React from 'react';
 import { Order, OrderLine } from '../types';
-import { Package, Calendar, DollarSign, CheckCircle, XCircle, Clock, Plus } from 'lucide-react';
+import { Package, Calendar, DollarSign, CheckCircle, XCircle, Clock, Plus, X } from 'lucide-react';
 
 interface OrdersPanelProps {
     orders: Order[];
@@ -46,6 +46,12 @@ export const OrdersPanel: React.FC<OrdersPanelProps> = ({ orders, onCancelOrder,
         });
     };
 
+    const handleCancelOrder = (orderId: string) => {
+        onCancelOrder(orderId);
+
+        
+    };
+
     return (
         <div className="orders-panel">
             <div className="panel-header">
@@ -81,6 +87,15 @@ export const OrdersPanel: React.FC<OrdersPanelProps> = ({ orders, onCancelOrder,
                                 <div className="order-status" style={{ color: getStatusColor(order.ShippedAt) }}>
                                     {getStatusIcon(order.ShippedAt)}
                                     <span className="status-text">{getStatusText(order.ShippedAt)}</span>
+                                    {canCancelOrder(order.ShippedAt) && (
+                                        <button
+                                            className="cancel-order-btn"
+                                            onClick={() => handleCancelOrder(order.id)}
+                                            title="Cancel Order"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 

@@ -1,35 +1,80 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Chat } from '../types';
-import { MessageCircle, Send, Bot, User } from 'lucide-react';
+import { Chat, ChatMessage } from '../types';
+import { MessageCircle, Send, Bot, User, X } from 'lucide-react';
 
 interface ChatPanelProps {
     chat: Chat;
     onSendMessage: (message: string) => void;
+    onClearChat: () => void;
 }
 
-export const ChatPanel: React.FC<ChatPanelProps> = ({ chat, onSendMessage }) => {
+// Simple markdown renderer for basic formatting
+const renderMarkdown = (msg: ChatMessage) => {
+    // Handle different message formats
+    let text = msg.message || msg.answer?.message || 'No message content';
+
+    // Convert **bold** to <strong>
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Convert *italic* to <em>
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Convert `code` to <code>
+    formatted = formatted.replace(/`(.*?)`/g, '<code>$1</code>');
+    // Convert line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+
+    return { __html: formatted };
+};
+
+export const ChatPanel: React.FC<ChatPanelProps> = ({ chat, onSendMessage, onClearChat }) => {
     const [newMessage, setNewMessage] = useState('');
     const [sending, setSending] = useState(false);
+    const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
+    const [isThinking, setIsThinking] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
+    // Update local messages when chat messages change from server
+    useEffect(() => {
+        // Always sync local messages with chat messages from server
+        setLocalMessages(chat.messages || []);
+        setIsThinking(false);
+    }, [chat.messages]);
+
+    // Scroll when local messages or thinking state changes
     useEffect(() => {
         scrollToBottom();
-    }, [chat.messages]);
+    }, [localMessages, isThinking]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newMessage.trim() || sending) return;
 
+        const userMessage: ChatMessage = {
+            userId: 'current-user',
+            message: newMessage.trim(),
+            sender: 'user',
+            timestamp: new Date().toISOString(),
+            requiredActions: []
+        };
+
+        // Add user message immediately
+        setLocalMessages(prev => [...prev, userMessage]);
+        setIsThinking(true);
         setSending(true);
+
+        const messageToSend = newMessage.trim();
+        setNewMessage('');
+
         try {
-            await onSendMessage(newMessage.trim());
-            setNewMessage('');
+            await onSendMessage(messageToSend);
         } catch (error) {
             console.error('Error sending message:', error);
+            // Remove the last user message on error (since it's the most recent one)
+            setLocalMessages(prev => prev.slice(0, -1));
+            setIsThinking(false);
         } finally {
             setSending(false);
         }
@@ -44,9 +89,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chat, onSendMessage }) => 
 
     const getSampleQuestions = () => [
         "What's the status of my recent order?",
-        "How can I return an item?",
-        "When will my order be delivered?",
-        "Can you recommend similar products?"
+        "Did I get any cheese?",
+        "Can you recommend similar products?",
+        "What wine goes with my recent order?"
     ];
 
     return (
@@ -57,12 +102,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chat, onSendMessage }) => 
                 <div className="chat-status">
                     <div className="status-indicator online"></div>
                     <span>Online</span>
+                    <button
+                        className="clear-chat-btn"
+                        onClick={onClearChat}
+                        title="Clear chat history"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
             </div>
 
             <div className="chat-content">
                 <div className="messages-container">
-                    {chat.messages.length === 0 ? (
+                    {localMessages.length === 0 && !isThinking ? (
                         <div className="empty-chat">
                             <Bot size={48} className="empty-icon" />
                             <p>Welcome to our AI chat support!</p>
@@ -83,9 +135,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chat, onSendMessage }) => 
                         </div>
                     ) : (
                         <div className="messages-list">
-                            {chat.messages.map((message) => (
+                            {localMessages.map((message, index) => (
                                 <div
-                                    key={message.id}
+                                    key={`message-${index}`}
                                     className={`message ${message.sender === 'user' ? 'user-message' : 'ai-message'}`}
                                 >
                                     <div className="message-avatar">
@@ -98,14 +150,68 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ chat, onSendMessage }) => 
 
                                     <div className="message-content">
                                         <div className="message-bubble">
-                                            <p>{message.message}</p>
+                                            <div dangerouslySetInnerHTML={renderMarkdown(message)} />
                                         </div>
                                         <div className="message-time">
                                             {formatTime(message.timestamp)}
                                         </div>
+                                        {message.answer && message.answer.orders && (
+                                            <div className="message-orders">
+                                                <strong>Orders:</strong>
+                                                <ul>
+                                                    {message.answer.orders.map((order, idx) => (
+                                                        <li key={idx}>
+                                                            <a
+                                                                href={`http://localhost:8080/studio/index.html#databases/edit?&collection=Orders&database=Orders&id=${encodeURIComponent(order)}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                {order}
+                                                            </a>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {message.answer && message.answer.products && (
+                                            <div className="message-products">
+                                                <strong>Products:</strong>
+                                                <ul>
+                                                    {message.answer.products.map((product, idx) => (
+                                                        <li key={idx}>
+                                                            <a
+                                                                href={`http://localhost:8080/studio/index.html#databases/edit?&collection=Products&database=Orders&id=${encodeURIComponent(product)}`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                {product}
+                                                            </a>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
+
+                            {isThinking && (
+                                <div className="message ai-message thinking-message">
+                                    <div className="message-avatar">
+                                        <Bot size={20} />
+                                    </div>
+                                    <div className="message-content">
+                                        <div className="message-bubble thinking-bubble">
+                                            <div className="thinking-animation">
+                                                <span className="emoji">🤔</span>
+                                                <span className="emoji">💭</span>
+                                                <span className="emoji">⚡</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div ref={messagesEndRef} />
                         </div>
                     )}

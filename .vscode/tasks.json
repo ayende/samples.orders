@@ -121,6 +121,30 @@
             }
         },
         {
+            "label": "Build Backend",
+            "type": "shell",
+            "command": "npm",
+            "args": [
+                "run",
+                "build"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$tsc"
+            ]
+        },
+        {
             "label": "Start Both (Frontend & Backend)",
             "dependsOrder": "parallel",
             "dependsOn": [

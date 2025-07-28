@@ -1,0 +1,63 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Backend",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/backend/src/index.ts",
+            "outFiles": [
+                "${workspaceFolder}/backend/dist/**/*.js"
+            ],
+            "runtimeArgs": [
+                "--loader",
+                "ts-node/esm"
+            ],
+            "env": {
+                "NODE_ENV": "development",
+                "TS_NODE_PROJECT": "${workspaceFolder}/backend/tsconfig.json"
+            },
+            "console": "integratedTerminal",
+            "restart": true,
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "envFile": "${workspaceFolder}/backend/.env"
+        },
+        {
+            "name": "Debug Backend (nodemon)",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run",
+                "dev"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "console": "integratedTerminal",
+            "restart": true,
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "envFile": "${workspaceFolder}/backend/.env"
+        },
+        {
+            "name": "Debug Backend (Built)",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/backend/dist/index.js",
+            "preLaunchTask": "build-backend",
+            "outFiles": [
+                "${workspaceFolder}/backend/dist/**/*.js"
+            ],
+            "console": "integratedTerminal",
+            "restart": true,
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "envFile": "${workspaceFolder}/backend/.env"
+        }
+    ]
+}

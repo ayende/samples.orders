@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { CartItem, Order, Chat, Product } from '../types';
+import { CartItem, Order, Chat, Product, ChatMessage } from '../types';
 
 const API_BASE = 'http://localhost:3001/api';
 
@@ -33,9 +33,8 @@ export const apiService = {
         return response.data;
     },
 
-    async cancelOrder(userId: string, orderId: string): Promise<{ orders: Order[] }> {
-        const response = await api.post(`/orders/cancel?userId=${userId}&id=${orderId}`);
-        return response.data;
+    async cancelOrder(userId: string, orderId: string): Promise<void> {
+        await api.post(`/orders/cancel?userId=${userId}&id=${orderId}`);
     },
 
     // Chat API
@@ -44,9 +43,17 @@ export const apiService = {
         return response.data;
     },
 
-    async sendMessage(userId: string, message: string): Promise<{ chat: Chat }> {
-        const response = await api.post(`/chat?userid=${userId}`, { message });
+    async sendMessage(userId: string, message: string, toolId?: string): Promise<{
+        chatMessage: ChatMessage,
+        conversationId: string,
+        refreshCart: boolean
+    }> {
+        const response = await api.post(`/chat?userid=${userId}`, { message, toolId });
         return response.data;
+    },
+
+    async clearChat(userId: string): Promise<void> {
+        await api.delete(`/chat?userid=${userId}`);
     },
 
     // Products API (additional endpoint)

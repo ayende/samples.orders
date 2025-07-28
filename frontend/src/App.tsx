@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CartItem, Order, Chat } from './types';
+import { CartItem, Order, Chat, ChatMessage } from './types';
 import { apiService } from './services/api';
 import { OrdersPanel } from './components/OrdersPanel';
 import { CartPanel } from './components/CartPanel';
@@ -72,9 +72,15 @@ function App() {
   };
 
   const handleOrderCancel = async (orderId: string) => {
+    const confirmed = window.confirm('Are you sure you want to cancel this order? This action cannot be undone.');
+    if (!confirmed) {
+      return false;
+    }
     try {
-      const result = await apiService.cancelOrder(userId, orderId);
+      await apiService.cancelOrder(userId, orderId);
+      const result = await apiService.getOrders(userId);
       setOrders(result.orders);
+      return true;
     } catch (err) {
       console.error('Error cancelling order:', err);
     }
@@ -82,10 +88,68 @@ function App() {
 
   const handleSendMessage = async (message: string) => {
     try {
-      const result = await apiService.sendMessage(userId, message);
-      setChat(result.chat);
+      // Send the message and get the AI response
+      let result = await apiService.sendMessage(userId, message);
+
+      while (result.chatMessage.requiredActions && result.chatMessage.requiredActions.length > 0) {
+        const action = result.chatMessage.requiredActions[0];
+        switch (action.name) {
+          case 'CancelOrder': {
+            const { orderId } = JSON.parse(action.arguments);
+            try {
+              if (await handleOrderCancel(orderId)) {
+                result = await apiService.sendMessage(userId, `Cancelled ${orderId}`, action.toolId);
+              }
+              else {
+                result = await apiService.sendMessage(userId, `User declined to cancel ${orderId}`, action.toolId);
+              }
+            }
+            catch (e) {
+              result = await apiService.sendMessage(userId, `Failed to cancel order ${orderId}: ${e}`, action.toolId);
+            }
+            break;
+          }
+          default:
+            alert(`Action ${action.name} is not implemented.`);
+            console.warn(`Unhandled action: ${action.name}`);
+            result = await apiService.sendMessage(userId, `Action ${action.name} is not implemented.`);
+            break;
+        }
+      }
+
+
+      // The backend now returns a properly formatted ChatMessage
+      const aiMessage = result.chatMessage;
+
+      // Update chat state locally by adding the AI response
+      setChat(prevChat => ({
+        ...prevChat,
+        messages: [...(prevChat.messages || []), aiMessage]
+      }));
+
+      // If the backend indicates we should refresh the cart, do so
+      if (result.refreshCart) {
+        const cartData = await apiService.getCart(userId);
+        setCart(cartData.cart);
+        setCartTotal(cartData.total);
+      }
     } catch (err) {
       console.error('Error sending message:', err);
+    }
+  };
+
+  const handleClearChat = async () => {
+    const confirmed = window.confirm('Are you sure you want to clear the chat history? This action cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiService.clearChat(userId);
+      // Clear the local chat state
+      setChat({ userId, messages: [] });
+    } catch (err) {
+      console.error('Error clearing chat:', err);
     }
   };
 
@@ -157,6 +221,7 @@ function App() {
               <ChatPanel
                 chat={chat}
                 onSendMessage={handleSendMessage}
+                onClearChat={handleClearChat}
               />
             </div>
           </div>
