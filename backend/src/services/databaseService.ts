@@ -1,4 +1,4 @@
-import { AiAgentConfiguration, DocumentStore } from 'ravendb';
+import { DocumentStore } from 'ravendb';
 
 // Initialize the document store
 const documentStore = new DocumentStore([
@@ -16,7 +16,7 @@ documentStore.initialize();
 
 console.log('🗄️ RavenDB DocumentStore initialized');
 
-const agentConfig: AiAgentConfiguration = {
+const agentConfig = {
     identifier: 'shopping-agent',
     name: 'Shopping Agent',
     connectionStringName: 'Open AI Gen',
@@ -57,7 +57,7 @@ If you are providing a list of items, use bullet points.
         conversationIdPrefix: 'chats/',
         conversationExpirationInSec: 60 * 60 * 24 * 60, // 60 days
     },
-    parameters: new Set(['userId']),
+    parameters: [{ name: 'userId', sendToModel: false }],
     outputSchema: '',
     actions: [{
         name: 'AddToCart',
@@ -84,7 +84,6 @@ If you are providing a list of items, use bullet points.
             orderId: "the order id to cancel"
         })
     }],
-    chatTrimming: null,
     maxModelIterationsPerCall: 16
 };
 
