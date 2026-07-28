@@ -1,4 +1,6 @@
 import { Router, Request, Response } from 'express';
+import { randomUUID } from 'crypto';
+import { AiConversationCreationOptions } from 'ravendb';
 import { documentStore } from '../services/databaseService';
 import { Conversation } from '../types';
 import { addItemToCart, removeItemFromCart } from './cart';
@@ -80,9 +82,12 @@ router.post('/', async (req: Request, res: Response) => {
 
         const currentChat = await session.load<CurrentChat>(currentChatId);
 
-        const agent = currentChat ?
-            documentStore.ai.resumeConversation(currentChat.currentConversation) :
-            documentStore.ai.startConversation('shopping-agent', { userId: userId });
+        const conversationId = currentChat ? currentChat.currentConversation : `chats/${randomUUID()}`;
+        const agent = documentStore.ai.conversation(
+            'shopping-agent',
+            conversationId,
+            new AiConversationCreationOptions({ userId: userId })
+        );
 
         if (toolId) {
             agent.addActionResponse(toolId, message);
@@ -91,9 +96,11 @@ router.post('/', async (req: Request, res: Response) => {
             agent.setUserPrompt(message);
         }
         let refreshCart = false;
+        let lastResponse: Awaited<ReturnType<typeof agent.run>> | undefined;
         while (true) {
             const response = await agent.run();
-            if (response === 'Done') {
+            lastResponse = response;
+            if (response.status === 'Done') {
                 break;
             }
             for (var action of agent.requiredActions()) {
@@ -136,7 +143,7 @@ router.post('/', async (req: Request, res: Response) => {
             userId: userId,
             sender: 'ai' as const,
             message: undefined,
-            answer: !requiredActions.length ? agent.answer : undefined,
+            answer: !requiredActions.length ? lastResponse?.answer : undefined,
             requiredActions,
             timestamp: new Date().toISOString()
         };
